@@ -7,8 +7,81 @@
 class ElevationService {
     constructor() {
         this.apiUrl = 'https://api.open-elevation.com/api/v1/lookup';
+        this.overpassUrl = 'https://overpass-api.de/api/interpreter';
         this.cache = new Map();
+        this.buildingCache = new Map();
         this.earthRadius = 6371; // km
+    }
+
+    /**
+     * Fetch buildings along a path from OSM
+     */
+    async getBuildingsAlongPath(lat1, lon1, lat2, lon2, bufferKm = 0.1) {
+        const key = `${lat1},${lon1}-${lat2},${lon2}`;
+        
+        if (this.buildingCache.has(key)) {
+            return this.buildingCache.get(key);
+        }
+
+        // Calculate bounding box with buffer
+        const minLat = Math.min(lat1, lat2) - bufferKm / 111;
+        const maxLat = Math.max(lat1, lat2) + bufferKm / 111;
+        const minLon = Math.min(lon1, lon2) - bufferKm / (111 * Math.cos(lat1 * Math.PI / 180));
+        const maxLon = Math.max(lon1, lon2) + bufferKm / (111 * Math.cos(lat1 * Math.PI / 180));
+
+        const query = `
+            [out:json][timeout:25];
+            (
+              way["building"](${minLat},${minLon},${maxLat},${maxLon});
+              relation["building"](${minLat},${minLon},${maxLat},${maxLon});
+            );
+            out geom;
+        `;
+
+        try {
+            const response = await fetch(this.overpassUrl, {
+                method: 'POST',
+                body: `data=${encodeURIComponent(query)}`
+            });
+            
+            const data = await response.json();
+            
+            // Process buildings
+            const buildings = data.elements.map(element => {
+                let height = 10; // Default building height in meters
+                
+                if (element.tags) {
+                    if (element.tags['height']) {
+                        height = parseFloat(element.tags['height']);
+                    } else if (element.tags['building:levels']) {
+                        height = parseFloat(element.tags['building:levels']) * 3; // 3m per level
+                    }
+                }
+
+                // Get center point
+                let centerLat, centerLon;
+                if (element.geometry && element.geometry.length > 0) {
+                    const latSum = element.geometry.reduce((sum, node) => sum + node.lat, 0);
+                    const lonSum = element.geometry.reduce((sum, node) => sum + node.lon, 0);
+                    centerLat = latSum / element.geometry.length;
+                    centerLon = lonSum / element.geometry.length;
+                }
+
+                return {
+                    lat: centerLat,
+                    lon: centerLon,
+                    height,
+                    geometry: element.geometry
+                };
+            }).filter(b => b.lat && b.lon);
+
+            this.buildingCache.set(key, buildings);
+            return buildings;
+            
+        } catch (error) {
+            console.error('Error fetching buildings:', error);
+            return [];
+        }
     }
 
     /**
@@ -141,8 +214,9 @@ class ElevationService {
 
     /**
      * Calculate line of sight with Fresnel zone clearance
+     * Now includes building obstructions
      */
-    analyzeLineOfSight(elevationProfile, point1Height, point2Height, fresnelRadius, frequency) {
+    analyzeLineOfSight(elevationProfile, point1Height, point2Height, fresnelRadius, frequency, buildings = []) {
         const { profile, totalDistance } = elevationProfile;
         
         if (profile.length < 2) {
@@ -183,23 +257,33 @@ class ElevationService {
             const requiredHeight = adjustedLineHeight + (localFresnelRadius * 0.6);
 
             // Actual terrain height
-            const terrainHeight = point.elevation;
+            let obstructionHeight = point.elevation;
+
+            // Check for buildings at this point
+            buildings.forEach(building => {
+                const buildingDist = this.calculateDistance(point.lat, point.lon, building.lat, building.lon);
+                // If building is within 50m of the path point
+                if (buildingDist < 0.05) { // 50m = 0.05km
+                    obstructionHeight = Math.max(obstructionHeight, point.elevation + building.height);
+                }
+            });
 
             // Calculate clearance
-            const clearance = adjustedLineHeight - terrainHeight;
+            const clearance = adjustedLineHeight - obstructionHeight;
             const fresnelClearancePercent = (clearance / localFresnelRadius) * 100;
 
             minClearance = Math.min(minClearance, fresnelClearancePercent);
 
             // Check if obstructed
-            if (terrainHeight > requiredHeight) {
+            if (obstructionHeight > requiredHeight) {
                 obstructions.push({
                     distance: d1,
-                    elevation: terrainHeight,
+                    elevation: obstructionHeight,
                     requiredHeight: requiredHeight,
-                    obstruction: terrainHeight - requiredHeight,
+                    obstruction: obstructionHeight - requiredHeight,
                     lat: point.lat,
-                    lon: point.lon
+                    lon: point.lon,
+                    type: obstructionHeight > point.elevation + 5 ? 'building' : 'terrain'
                 });
             }
         }
