@@ -192,24 +192,24 @@ header h1 {
 .settings-panel {
     background: var(--bg-secondary);
     border-radius: 12px;
-    padding: 25px;
+    padding: 15px;
     box-shadow: var(--shadow-lg);
     overflow-y: auto;
     max-height: 700px;
 }
 
 .settings-panel::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
 }
 
 .settings-panel::-webkit-scrollbar-track {
     background: var(--bg-tertiary);
-    border-radius: 4px;
+    border-radius: 3px;
 }
 
 .settings-panel::-webkit-scrollbar-thumb {
     background: var(--border-color);
-    border-radius: 4px;
+    border-radius: 3px;
 }
 
 .settings-panel::-webkit-scrollbar-thumb:hover {
@@ -217,21 +217,110 @@ header h1 {
 }
 
 .settings-panel h2 {
-    font-size: 1.5rem;
-    margin-bottom: 20px;
+    font-size: 1.3rem;
+    margin-bottom: 15px;
     color: var(--accent-primary);
 }
 
 .settings-group {
-    margin-bottom: 25px;
+    margin-bottom: 15px;
 }
 
 .settings-group h3 {
-    font-size: 1.1rem;
-    margin-bottom: 15px;
+    font-size: 1rem;
+    margin-bottom: 10px;
     color: var(--text-secondary);
-    padding-bottom: 8px;
+    padding-bottom: 5px;
     border-bottom: 2px solid var(--border-color);
+}
+
+/* Compact Input Groups */
+.input-group-compact {
+    margin-bottom: 12px;
+}
+
+.input-group-compact label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+    font-size: 0.85rem;
+}
+
+.label-text {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.label-value {
+    color: var(--accent-primary);
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+/* Compact select */
+.select-input-compact {
+    width: 100%;
+    padding: 8px;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.select-input-compact:hover,
+.select-input-compact:focus {
+    border-color: var(--accent-primary);
+    outline: none;
+}
+
+/* Compact range labels */
+.range-labels-compact {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Compact Results Panel */
+.results-panel-compact {
+    margin-top: 15px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    border-left: 3px solid var(--accent-primary);
+}
+
+.results-panel-compact h3 {
+    font-size: 0.95rem;
+    margin-bottom: 10px;
+    color: var(--accent-primary);
+}
+
+.result-item-compact {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.85rem;
+}
+
+.result-item-compact:last-child {
+    border-bottom: none;
+}
+
+.result-item-compact .result-label {
+    color: var(--text-secondary);
+}
+
+.result-item-compact .result-value {
+    color: var(--accent-primary);
+    font-weight: 700;
+    font-size: 0.9rem;
 }
 
 /* Input Groups */
@@ -680,4 +769,53 @@ footer {
     font-weight: 600;
     border: 2px solid var(--accent-primary);
     box-shadow: var(--shadow);
+}
+
+/* Position layer control below zoom */
+.leaflet-top.leaflet-left {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.leaflet-control-layers {
+    margin-top: 0 !important;
+    background: rgba(26, 31, 46, 0.95) !important;
+    backdrop-filter: blur(10px);
+    border: 2px solid var(--border-color) !important;
+    border-radius: 8px !important;
+}
+
+.leaflet-control-layers-toggle {
+    background-color: rgba(26, 31, 46, 0.95) !important;
+    width: 36px !important;
+    height: 36px !important;
+}
+
+.leaflet-control-layers-list {
+    color: var(--text-primary) !important;
+}
+
+.leaflet-control-layers-base label {
+    color: var(--text-primary) !important;
+}
+
+.leaflet-control-zoom {
+    border: 2px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    overflow: hidden;
+}
+
+.leaflet-control-zoom a {
+    background: rgba(26, 31, 46, 0.95) !important;
+    backdrop-filter: blur(10px);
+    color: var(--text-primary) !important;
+    border: none !important;
+    width: 36px !important;
+    height: 36px !important;
+    line-height: 36px !important;
+}
+
+.leaflet-control-zoom a:hover {
+    background: var(--bg-hover) !important;
 }
