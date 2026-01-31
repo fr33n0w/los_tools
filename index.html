@@ -52,7 +52,7 @@
                 <div class="settings-group">
                     <h3>Radio Configuration</h3>
                     
-                    <div class="input-group">
+                    <div class="input-group-compact">
                         <label for="frequency">
                             <span class="label-text">Frequency</span>
                             <span class="label-value" id="frequencyValue">868</span> MHz
@@ -60,46 +60,46 @@
                         <div class="radio-group">
                             <label class="radio-label">
                                 <input type="radio" name="frequency" value="433" />
-                                <span>433 MHz</span>
+                                <span>433</span>
                             </label>
                             <label class="radio-label">
                                 <input type="radio" name="frequency" value="868" checked />
-                                <span>868 MHz</span>
+                                <span>868</span>
                             </label>
                         </div>
                     </div>
 
-                    <div class="input-group">
+                    <div class="input-group-compact">
                         <label for="bandwidth">
-                            <span class="label-text">Bandwidth</span>
+                            <span class="label-text">BW</span>
                             <span class="label-value" id="bandwidthValue">125</span> kHz
                         </label>
-                        <select id="bandwidth" class="select-input">
+                        <select id="bandwidth" class="select-input-compact">
                             <option value="125">125 kHz</option>
                             <option value="250">250 kHz</option>
                             <option value="500">500 kHz</option>
                         </select>
                     </div>
 
-                    <div class="input-group">
+                    <div class="input-group-compact">
                         <label for="spreadingFactor">
-                            <span class="label-text">Spreading Factor</span>
+                            <span class="label-text">SF</span>
                             <span class="label-value" id="sfValue">7</span>
                         </label>
                         <input type="range" id="spreadingFactor" class="range-input" 
                                min="7" max="12" value="7" step="1" />
-                        <div class="range-labels">
-                            <span>SF7</span>
-                            <span>SF12</span>
+                        <div class="range-labels-compact">
+                            <span>7</span>
+                            <span>12</span>
                         </div>
                     </div>
 
-                    <div class="input-group">
+                    <div class="input-group-compact">
                         <label for="codingRate">
-                            <span class="label-text">Coding Rate</span>
+                            <span class="label-text">CR</span>
                             <span class="label-value" id="crValue">4/5</span>
                         </label>
-                        <select id="codingRate" class="select-input">
+                        <select id="codingRate" class="select-input-compact">
                             <option value="5">4/5</option>
                             <option value="6">4/6</option>
                             <option value="7">4/7</option>
@@ -107,62 +107,62 @@
                         </select>
                     </div>
 
-                    <div class="input-group">
+                    <div class="input-group-compact">
                         <label for="txPower">
                             <span class="label-text">TX Power</span>
                             <span class="label-value" id="txPowerValue">14</span> dBm
                         </label>
                         <input type="range" id="txPower" class="range-input" 
                                min="2" max="27" value="14" step="1" />
-                        <div class="range-labels">
-                            <span>2 dBm</span>
-                            <span>27 dBm</span>
+                        <div class="range-labels-compact">
+                            <span>2</span>
+                            <span>27</span>
                         </div>
                     </div>
 
-                    <div class="input-group">
+                    <div class="input-group-compact">
                         <label for="txGain">
-                            <span class="label-text">TX Antenna Gain</span>
+                            <span class="label-text">TX Gain</span>
                             <span class="label-value" id="txGainValue">2</span> dBi
                         </label>
                         <input type="range" id="txGain" class="range-input" 
                                min="-2" max="15" value="2" step="0.5" />
-                        <div class="range-labels">
-                            <span>-2 dBi</span>
-                            <span>15 dBi</span>
+                        <div class="range-labels-compact">
+                            <span>-2</span>
+                            <span>15</span>
                         </div>
                     </div>
 
-                    <div class="input-group">
+                    <div class="input-group-compact">
                         <label for="rxGain">
-                            <span class="label-text">RX Antenna Gain</span>
+                            <span class="label-text">RX Gain</span>
                             <span class="label-value" id="rxGainValue">2</span> dBi
                         </label>
                         <input type="range" id="rxGain" class="range-input" 
                                min="-2" max="15" value="2" step="0.5" />
-                        <div class="range-labels">
-                            <span>-2 dBi</span>
-                            <span>15 dBi</span>
+                        <div class="range-labels-compact">
+                            <span>-2</span>
+                            <span>15</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Results Panel -->
-                <div class="results-panel">
-                    <h3>📊 Calculated Results</h3>
-                    <div class="result-item">
+                <div class="results-panel-compact">
+                    <h3>📊 Results</h3>
+                    <div class="result-item-compact">
                         <span class="result-label">Link Budget:</span>
                         <span class="result-value" id="linkBudget">-- dB</span>
                     </div>
-                    <div class="result-item">
+                    <div class="result-item-compact">
                         <span class="result-label">Data Rate:</span>
                         <span class="result-value" id="dataRate">-- bps</span>
                     </div>
-                    <div class="result-item">
+                    <div class="result-item-compact">
                         <span class="result-label">Sensitivity:</span>
                         <span class="result-value" id="sensitivity">-- dBm</span>
                     </div>
-                    <div class="result-item">
+                    <div class="result-item-compact">
                         <span class="result-label">Max Range:</span>
                         <span class="result-value" id="maxRange">-- km</span>
                     </div>
