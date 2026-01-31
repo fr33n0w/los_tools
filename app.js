@@ -14,8 +14,13 @@ const appState = {
     markers: [],
     polylines: [],
     addingPoint: false,
-    elevationChart: null,
-    currentAnalysis: null
+    elevationCharts: [],
+    currentAnalysis: null,
+    buildingsLayer: null,
+    buildingsEnabled: false,
+    coverageCircles: [],
+    coverageEnabled: false,
+    baseLayers: {}
 };
 
 // LoRa parameters state
@@ -46,12 +51,37 @@ function initMap() {
     // Create map centered on Europe
     appState.map = L.map('map').setView([45.4642, 9.1900], 6);
 
-    // Add dark tile layer
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
+    // Define base layers
+    const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
-    }).addTo(appState.map);
+    });
+
+    const osmTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+        maxZoom: 17
+    });
+
+    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        maxZoom: 19
+    });
+
+    // Add default layer (Topo map with elevation)
+    osmTopo.addTo(appState.map);
+
+    // Store layers
+    appState.baseLayers = {
+        "Topographic": osmTopo,
+        "Standard": osmStandard,
+        "Satellite": satellite
+    };
+
+    // Add layer control
+    L.control.layers(appState.baseLayers).addTo(appState.map);
+
+    // Initialize OSM Buildings layer (not added to map yet)
+    appState.buildingsLayer = new OSMBuildings(appState.map).load();
 
     // Try to get user location
     if (navigator.geolocation) {
@@ -79,6 +109,12 @@ function initEventListeners() {
 
     // Analyze button
     document.getElementById('analyzeBtn').addEventListener('click', analyzeLineOfSight);
+
+    // Toggle buildings layer
+    document.getElementById('toggleBuildingsBtn').addEventListener('click', toggleBuildingsLayer);
+
+    // Toggle coverage layer
+    document.getElementById('toggleCoverageBtn').addEventListener('click', toggleCoverageLayer);
 
     // Map click handler
     appState.map.on('click', onMapClick);
@@ -209,6 +245,11 @@ async function addPoint(lat, lon) {
     if (appState.points.length >= 2) {
         drawLines();
     }
+
+    // Update coverage layer if enabled
+    if (appState.coverageEnabled) {
+        updateCoverageLayer();
+    }
 }
 
 /**
@@ -263,6 +304,10 @@ function clearAllPoints() {
     // Remove lines
     appState.polylines.forEach(line => appState.map.removeLayer(line));
     appState.polylines = [];
+
+    // Remove coverage circles
+    appState.coverageCircles.forEach(circle => appState.map.removeLayer(circle));
+    appState.coverageCircles = [];
 
     // Clear state
     appState.points = [];
@@ -377,6 +422,11 @@ function updateCalculations() {
     document.getElementById('sensitivity').textContent = `${sensitivity.toFixed(1)} dBm`;
     document.getElementById('maxRange').textContent = `${maxRange.toFixed(1)} km`;
 
+    // Update coverage layer if enabled
+    if (appState.coverageEnabled) {
+        updateCoverageLayer();
+    }
+
     // Re-analyze if we have points
     if (appState.currentAnalysis) {
         analyzeLineOfSight();
@@ -411,16 +461,25 @@ async function analyzeLineOfSight() {
             // Calculate distance
             const distance = elevationProfile.totalDistance;
 
+            // Get buildings if enabled
+            let buildings = [];
+            if (appState.buildingsEnabled) {
+                buildings = await elevationService.getBuildingsAlongPath(
+                    p1.lat, p1.lon, p2.lat, p2.lon, 0.1
+                );
+            }
+
             // Calculate Fresnel radius
             const fresnelRadius = loraCalc.calculateMaxFresnelRadius(distance, loraParams.frequency);
 
-            // Analyze LoS
+            // Analyze LoS with buildings
             const losAnalysis = elevationService.analyzeLineOfSight(
                 elevationProfile,
                 10, // Antenna height point 1 (10m)
                 10, // Antenna height point 2 (10m)
                 fresnelRadius,
-                loraParams.frequency
+                loraParams.frequency,
+                buildings
             );
 
             // Calculate link budget
@@ -453,15 +512,101 @@ async function analyzeLineOfSight() {
         // Display results
         displayAnalysisResults(analyses);
 
-        // Display elevation chart for first link
-        if (analyses.length > 0) {
-            displayElevationChart(analyses[0]);
-        }
+        // Display elevation charts for all links
+        displayElevationCharts(analyses);
 
     } catch (error) {
         console.error('Analysis error:', error);
         linkAnalysisDiv.innerHTML = '<p class="placeholder" style="color: var(--danger);">Error during analysis. Please try again.</p>';
     }
+}
+
+/**
+ * Toggle buildings layer
+ */
+function toggleBuildingsLayer() {
+    const btn = document.getElementById('toggleBuildingsBtn');
+    
+    appState.buildingsEnabled = !appState.buildingsEnabled;
+    
+    if (appState.buildingsEnabled) {
+        // Show buildings
+        appState.buildingsLayer = new OSMBuildings(appState.map).load();
+        btn.classList.add('active');
+    } else {
+        // Hide buildings
+        if (appState.buildingsLayer) {
+            appState.buildingsLayer.remove();
+            appState.buildingsLayer = null;
+        }
+        btn.classList.remove('active');
+    }
+}
+
+/**
+ * Toggle coverage layer
+ */
+function toggleCoverageLayer() {
+    const btn = document.getElementById('toggleCoverageBtn');
+    
+    appState.coverageEnabled = !appState.coverageEnabled;
+    
+    if (appState.coverageEnabled) {
+        btn.classList.add('active');
+        updateCoverageLayer();
+    } else {
+        // Remove coverage circles
+        appState.coverageCircles.forEach(circle => appState.map.removeLayer(circle));
+        appState.coverageCircles = [];
+        btn.classList.remove('active');
+    }
+}
+
+/**
+ * Update coverage layer based on current points
+ */
+function updateCoverageLayer() {
+    // Remove existing coverage circles
+    appState.coverageCircles.forEach(circle => appState.map.removeLayer(circle));
+    appState.coverageCircles = [];
+    
+    if (!appState.coverageEnabled || appState.points.length === 0) {
+        return;
+    }
+
+    // Calculate max range for current settings
+    const maxRange = loraCalc.calculateMaxRange({
+        ...loraParams,
+        sf: loraParams.spreadingFactor,
+        bw: loraParams.bandwidth
+    });
+
+    // Add coverage circle for each point
+    appState.points.forEach((point, index) => {
+        // Convert km to meters
+        const radiusMeters = maxRange * 1000;
+
+        // Create circle with gradient effect
+        const circle = L.circle([point.lat, point.lon], {
+            radius: radiusMeters,
+            color: index === 0 ? '#00d9ff' : '#7b61ff',
+            fillColor: index === 0 ? '#00d9ff' : '#7b61ff',
+            fillOpacity: 0.1,
+            weight: 2,
+            opacity: 0.5
+        }).addTo(appState.map);
+
+        // Add popup
+        circle.bindPopup(`
+            <div style="color: #0f1419;">
+                <strong>Coverage for Point ${point.label}</strong><br>
+                Max Range: ${maxRange.toFixed(1)} km<br>
+                Settings: SF${loraParams.spreadingFactor}, BW${loraParams.bandwidth}kHz
+            </div>
+        `);
+
+        appState.coverageCircles.push(circle);
+    });
 }
 
 /**
@@ -526,89 +671,145 @@ function displayAnalysisResults(analyses) {
 }
 
 /**
- * Display elevation chart
+ * Display elevation charts for all links
  */
-function displayElevationChart(analysis) {
-    const { elevationProfile, losAnalysis, from, to } = analysis;
-    const { profile } = elevationProfile;
+function displayElevationCharts(analyses) {
+    const container = document.getElementById('elevationProfiles');
+    
+    // Clear existing charts
+    appState.elevationCharts.forEach(chart => chart.destroy());
+    appState.elevationCharts = [];
+    container.innerHTML = '';
 
-    // Prepare data
-    const labels = profile.map(p => p.distance.toFixed(2));
-    const elevations = profile.map(p => p.elevation);
+    // Create a chart for each link
+    analyses.forEach((analysis, index) => {
+        const { elevationProfile, losAnalysis, from, to } = analysis;
+        const { profile } = elevationProfile;
 
-    // Calculate LoS line
-    const startHeight = profile[0].elevation + 10; // + antenna height
-    const endHeight = profile[profile.length - 1].elevation + 10;
-    const losLine = profile.map((p, i) => {
-        const fraction = i / (profile.length - 1);
-        return startHeight + (endHeight - startHeight) * fraction;
-    });
+        // Create chart container
+        const chartCard = document.createElement('div');
+        chartCard.className = 'elevation-chart-card';
+        chartCard.innerHTML = `
+            <h3>Elevation Profile: ${from} → ${to}</h3>
+            <canvas id="elevationChart${index}"></canvas>
+        `;
+        container.appendChild(chartCard);
 
-    // Destroy existing chart
-    if (appState.elevationChart) {
-        appState.elevationChart.destroy();
-    }
+        // Prepare data
+        const labels = profile.map(p => p.distance.toFixed(2));
+        const elevations = profile.map(p => p.elevation);
 
-    // Create chart
-    const ctx = document.getElementById('elevationChart').getContext('2d');
-    appState.elevationChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels,
-            datasets: [
-                {
-                    label: 'Terrain Elevation',
-                    data: elevations,
-                    borderColor: '#ffaa00',
-                    backgroundColor: 'rgba(255, 170, 0, 0.2)',
-                    fill: true,
-                    tension: 0.4
-                },
-                {
-                    label: 'LoS Line',
-                    data: losLine,
-                    borderColor: losAnalysis.hasLoS ? '#00ff88' : '#ff4466',
-                    borderDash: [5, 5],
-                    fill: false,
-                    pointRadius: 0
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                title: {
-                    display: true,
-                    text: `Elevation Profile: ${from} → ${to}`,
-                    color: '#e4e6eb',
-                    font: { size: 14 }
-                },
-                legend: {
-                    labels: { color: '#e4e6eb' }
-                }
+        // Calculate LoS line
+        const startHeight = profile[0].elevation + 10; // + antenna height
+        const endHeight = profile[profile.length - 1].elevation + 10;
+        const losLine = profile.map((p, i) => {
+            const fraction = i / (profile.length - 1);
+            return startHeight + (endHeight - startHeight) * fraction;
+        });
+
+        // Calculate Fresnel zone boundaries (60% clearance)
+        const fresnelUpper = [];
+        const fresnelLower = [];
+        const totalDistance = elevationProfile.totalDistance;
+        
+        profile.forEach((p, i) => {
+            const d1 = p.distance;
+            const d2 = totalDistance - d1;
+            const fresnelRadius = loraCalc.calculateFresnelRadius(d1, d2, loraParams.frequency);
+            const lineHeight = losLine[i];
+            
+            fresnelUpper.push(lineHeight + fresnelRadius * 0.6);
+            fresnelLower.push(lineHeight - fresnelRadius * 0.6);
+        });
+
+        // Create chart
+        const ctx = document.getElementById(`elevationChart${index}`).getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Terrain Elevation',
+                        data: elevations,
+                        borderColor: '#ffaa00',
+                        backgroundColor: 'rgba(255, 170, 0, 0.3)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'LoS Line',
+                        data: losLine,
+                        borderColor: losAnalysis.hasLoS ? '#00ff88' : '#ff4466',
+                        borderDash: [5, 5],
+                        fill: false,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    },
+                    {
+                        label: '60% Fresnel Zone',
+                        data: fresnelUpper,
+                        borderColor: 'rgba(0, 217, 255, 0.3)',
+                        backgroundColor: 'rgba(0, 217, 255, 0.1)',
+                        fill: '+1',
+                        pointRadius: 0,
+                        borderWidth: 1,
+                        borderDash: [2, 2]
+                    },
+                    {
+                        label: 'Fresnel Lower',
+                        data: fresnelLower,
+                        borderColor: 'rgba(0, 217, 255, 0)',
+                        fill: false,
+                        pointRadius: 0,
+                        borderWidth: 0,
+                        hidden: true
+                    }
+                ]
             },
-            scales: {
-                x: {
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
                     title: {
-                        display: true,
-                        text: 'Distance (km)',
-                        color: '#a8b3cf'
+                        display: false
                     },
-                    ticks: { color: '#a8b3cf' },
-                    grid: { color: '#2d3548' }
+                    legend: {
+                        labels: { 
+                            color: '#e4e6eb',
+                            filter: (item) => item.text !== 'Fresnel Lower'
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
                 },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Elevation (m)',
-                        color: '#a8b3cf'
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Distance (km)',
+                            color: '#a8b3cf'
+                        },
+                        ticks: { color: '#a8b3cf' },
+                        grid: { color: '#2d3548' }
                     },
-                    ticks: { color: '#a8b3cf' },
-                    grid: { color: '#2d3548' }
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Elevation (m)',
+                            color: '#a8b3cf'
+                        },
+                        ticks: { color: '#a8b3cf' },
+                        grid: { color: '#2d3548' }
+                    }
                 }
             }
-        }
+        });
+
+        appState.elevationCharts.push(chart);
     });
 }
 
@@ -618,10 +819,9 @@ function displayElevationChart(analysis) {
 function clearAnalysisResults() {
     document.getElementById('linkAnalysis').innerHTML = '<p class="placeholder">Click "Analyze LoS" to see results</p>';
     
-    if (appState.elevationChart) {
-        appState.elevationChart.destroy();
-        appState.elevationChart = null;
-    }
+    appState.elevationCharts.forEach(chart => chart.destroy());
+    appState.elevationCharts = [];
+    document.getElementById('elevationProfiles').innerHTML = '';
 }
 
 /**
