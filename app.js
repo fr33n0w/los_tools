@@ -18,6 +18,7 @@ const appState = {
     currentAnalysis: null,
     buildingsLayer: null,
     buildingsEnabled: false,
+    buildingPolygons: [],
     coverageCircles: [],
     coverageEnabled: false,
     baseLayers: {}
@@ -211,13 +212,24 @@ async function addPoint(lat, lon) {
         })
     }).addTo(appState.map);
 
-    // Add popup
+    // Add popup with delete button
     marker.bindPopup(`
         <div style="color: #e4e6eb;">
             <strong>Point ${label}</strong><br>
             Lat: ${lat.toFixed(6)}<br>
             Lon: ${lon.toFixed(6)}<br>
-            Elevation: ${elevation.toFixed(1)} m
+            Elevation: ${elevation.toFixed(1)} m<br>
+            <button onclick="removePoint(${pointIndex})" style="
+                margin-top: 8px;
+                padding: 6px 12px;
+                background: #ff4466;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: 600;
+                width: 100%;
+            ">❌ Delete Point</button>
         </div>
     `);
 
@@ -225,6 +237,14 @@ async function addPoint(lat, lon) {
     marker.on('dragend', () => {
         const pos = marker.getLatLng();
         updatePointPosition(pointIndex, pos.lat, pos.lng);
+    });
+
+    // Handle double-click to delete
+    marker.on('dblclick', (e) => {
+        L.DomEvent.stopPropagation(e); // Prevent map zoom
+        if (confirm(`Delete point ${label}?`)) {
+            removePoint(pointIndex);
+        }
     });
 
     // Store point
@@ -310,6 +330,12 @@ function clearAllPoints() {
     // Remove coverage circles
     appState.coverageCircles.forEach(circle => appState.map.removeLayer(circle));
     appState.coverageCircles = [];
+
+    // Remove building polygons
+    if (appState.buildingPolygons) {
+        appState.buildingPolygons.forEach(polygon => appState.map.removeLayer(polygon));
+        appState.buildingPolygons = [];
+    }
 
     // Clear state
     appState.points = [];
@@ -518,6 +544,11 @@ async function analyzeLineOfSight() {
         // Display elevation charts for all links
         displayElevationCharts(analyses);
 
+        // Display buildings on map if enabled
+        if (appState.buildingsEnabled) {
+            displayBuildingsOnMap();
+        }
+
     } catch (error) {
         console.error('Analysis error:', error);
         linkAnalysisDiv.innerHTML = '<p class="placeholder" style="color: var(--danger);">Error during analysis. Please try again.</p>';
@@ -533,12 +564,12 @@ function toggleBuildingsLayer() {
     appState.buildingsEnabled = !appState.buildingsEnabled;
     
     if (appState.buildingsEnabled) {
-        // Show buildings - create new instance if needed
-        if (!appState.buildingsLayer) {
-            appState.buildingsLayer = new OSMBuildings(appState.map);
-        }
-        appState.buildingsLayer.load();
         btn.classList.add('active');
+        
+        // Show buildings on map if we have analyzed points
+        if (appState.currentAnalysis && appState.currentAnalysis.length > 0) {
+            displayBuildingsOnMap();
+        }
         
         // Re-analyze if we have points to include buildings in calculation
         if (appState.currentAnalysis) {
@@ -546,10 +577,9 @@ function toggleBuildingsLayer() {
         }
     } else {
         // Hide buildings
-        if (appState.buildingsLayer) {
-            // OSMBuildings doesn't have a proper hide method, so we need to remove and recreate
-            appState.map.removeLayer(appState.buildingsLayer);
-            appState.buildingsLayer = null;
+        if (appState.buildingPolygons && appState.buildingPolygons.length > 0) {
+            appState.buildingPolygons.forEach(polygon => appState.map.removeLayer(polygon));
+            appState.buildingPolygons = [];
         }
         btn.classList.remove('active');
         
@@ -558,6 +588,51 @@ function toggleBuildingsLayer() {
             analyzeLineOfSight();
         }
     }
+}
+
+/**
+ * Display buildings on map from analysis
+ */
+function displayBuildingsOnMap() {
+    // Clear existing building polygons
+    if (appState.buildingPolygons && appState.buildingPolygons.length > 0) {
+        appState.buildingPolygons.forEach(polygon => appState.map.removeLayer(polygon));
+        appState.buildingPolygons = [];
+    }
+
+    if (!appState.currentAnalysis) return;
+
+    // Collect all buildings from all analyses
+    const allBuildings = new Set();
+    appState.currentAnalysis.forEach(analysis => {
+        if (analysis.buildings) {
+            analysis.buildings.forEach(building => {
+                if (building.geometry && building.geometry.length > 0) {
+                    // Create polygon for building
+                    const coords = building.geometry.map(node => [node.lat, node.lon]);
+                    
+                    // Only add if we have valid coordinates
+                    if (coords.length >= 3) {
+                        const polygon = L.polygon(coords, {
+                            color: '#ff6b6b',
+                            fillColor: '#ff6b6b',
+                            fillOpacity: 0.4,
+                            weight: 2
+                        }).addTo(appState.map);
+
+                        polygon.bindPopup(`
+                            <div style="color: #0f1419;">
+                                <strong>Building</strong><br>
+                                Height: ${building.height.toFixed(1)} m
+                            </div>
+                        `);
+
+                        appState.buildingPolygons.push(polygon);
+                    }
+                }
+            });
+        }
+    });
 }
 
 /**
@@ -766,7 +841,7 @@ function displayElevationCharts(analyses) {
                     {
                         label: 'LoS Line',
                         data: losLine,
-                        borderColor: losAnalysis.hasLoS ? '#00ff88' : '#ff4466',
+                        borderColor: '#00d9ff',
                         borderDash: [5, 5],
                         fill: false,
                         pointRadius: 0,
@@ -905,7 +980,7 @@ function displayElevationCharts(analyses) {
                             {
                                 label: 'LoS Line',
                                 data: losLine,
-                                borderColor: '#00d9ff',
+                                borderColor: losAnalysis.hasLoS ? '#00ff88' : '#ff4466',
                                 borderDash: [5, 5],
                                 fill: false,
                                 pointRadius: 0,
