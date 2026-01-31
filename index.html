@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoRa Line of Sight Calculator</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Chart.js for elevation profiles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>🛰️ LoRa Line of Sight Calculator</h1>
+            <p class="subtitle">Analyze RF coverage with terrain & building obstructions</p>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Map Container -->
+            <div class="map-section">
+                <div id="map"></div>
+                <div class="map-controls">
+                    <button id="addPointBtn" class="btn btn-primary">
+                        <span class="icon">📍</span> Add Point
+                    </button>
+                    <button id="clearPointsBtn" class="btn btn-secondary">
+                        <span class="icon">🗑️</span> Clear All
+                    </button>
+                    <button id="analyzeBtn" class="btn btn-success" disabled>
+                        <span class="icon">📡</span> Analyze LoS
+                    </button>
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div class="settings-panel">
+                <h2>LoRa Parameters</h2>
+                
+                <div class="settings-group">
+                    <h3>Radio Configuration</h3>
+                    
+                    <div class="input-group">
+                        <label for="frequency">
+                            <span class="label-text">Frequency</span>
+                            <span class="label-value" id="frequencyValue">868</span> MHz
+                        </label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="frequency" value="433" />
+                                <span>433 MHz</span>
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="frequency" value="868" checked />
+                                <span>868 MHz</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="bandwidth">
+                            <span class="label-text">Bandwidth</span>
+                            <span class="label-value" id="bandwidthValue">125</span> kHz
+                        </label>
+                        <select id="bandwidth" class="select-input">
+                            <option value="125">125 kHz</option>
+                            <option value="250">250 kHz</option>
+                            <option value="500">500 kHz</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="spreadingFactor">
+                            <span class="label-text">Spreading Factor</span>
+                            <span class="label-value" id="sfValue">7</span>
+                        </label>
+                        <input type="range" id="spreadingFactor" class="range-input" 
+                               min="7" max="12" value="7" step="1" />
+                        <div class="range-labels">
+                            <span>SF7</span>
+                            <span>SF12</span>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="codingRate">
+                            <span class="label-text">Coding Rate</span>
+                            <span class="label-value" id="crValue">4/5</span>
+                        </label>
+                        <select id="codingRate" class="select-input">
+                            <option value="5">4/5</option>
+                            <option value="6">4/6</option>
+                            <option value="7">4/7</option>
+                            <option value="8">4/8</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="txPower">
+                            <span class="label-text">TX Power</span>
+                            <span class="label-value" id="txPowerValue">14</span> dBm
+                        </label>
+                        <input type="range" id="txPower" class="range-input" 
+                               min="2" max="27" value="14" step="1" />
+                        <div class="range-labels">
+                            <span>2 dBm</span>
+                            <span>27 dBm</span>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="txGain">
+                            <span class="label-text">TX Antenna Gain</span>
+                            <span class="label-value" id="txGainValue">2</span> dBi
+                        </label>
+                        <input type="range" id="txGain" class="range-input" 
+                               min="-2" max="15" value="2" step="0.5" />
+                        <div class="range-labels">
+                            <span>-2 dBi</span>
+                            <span>15 dBi</span>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="rxGain">
+                            <span class="label-text">RX Antenna Gain</span>
+                            <span class="label-value" id="rxGainValue">2</span> dBi
+                        </label>
+                        <input type="range" id="rxGain" class="range-input" 
+                               min="-2" max="15" value="2" step="0.5" />
+                        <div class="range-labels">
+                            <span>-2 dBi</span>
+                            <span>15 dBi</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Panel -->
+                <div class="results-panel">
+                    <h3>📊 Calculated Results</h3>
+                    <div class="result-item">
+                        <span class="result-label">Link Budget:</span>
+                        <span class="result-value" id="linkBudget">-- dB</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Data Rate:</span>
+                        <span class="result-value" id="dataRate">-- bps</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Sensitivity:</span>
+                        <span class="result-value" id="sensitivity">-- dBm</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Max Range:</span>
+                        <span class="result-value" id="maxRange">-- km</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Output Section -->
+        <div class="output-section">
+            <h2>📡 Line of Sight Analysis</h2>
+            
+            <div class="output-grid">
+                <!-- Elevation Profile -->
+                <div class="output-card">
+                    <h3>Elevation Profile</h3>
+                    <canvas id="elevationChart"></canvas>
+                </div>
+
+                <!-- Link Analysis -->
+                <div class="output-card">
+                    <h3>Link Analysis</h3>
+                    <div id="linkAnalysis" class="link-analysis">
+                        <p class="placeholder">Click "Analyze LoS" to see results</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Points Table -->
+            <div class="points-table" id="pointsTable">
+                <h3>Waypoints</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Point</th>
+                            <th>Latitude</th>
+                            <th>Longitude</th>
+                            <th>Elevation</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pointsTableBody">
+                        <tr>
+                            <td colspan="5" class="placeholder">No points added yet</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <p>LoRa Line of Sight Calculator | Open Source Project</p>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="lora-calculator.js"></script>
+    <script src="elevation-service.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
