@@ -80,8 +80,8 @@ function initMap() {
     // Add layer control
     L.control.layers(appState.baseLayers).addTo(appState.map);
 
-    // Initialize OSM Buildings layer (not added to map yet)
-    appState.buildingsLayer = new OSMBuildings(appState.map).load();
+    // Buildings layer will be created when toggled (not initialized here)
+    appState.buildingsLayer = null;
 
     // Try to get user location
     if (navigator.geolocation) {
@@ -498,7 +498,8 @@ async function analyzeLineOfSight() {
                 elevationProfile,
                 losAnalysis,
                 linkBudget,
-                fresnelRadius
+                fresnelRadius,
+                buildings
             });
 
             // Update polyline color based on status
@@ -530,16 +531,30 @@ function toggleBuildingsLayer() {
     appState.buildingsEnabled = !appState.buildingsEnabled;
     
     if (appState.buildingsEnabled) {
-        // Show buildings
-        appState.buildingsLayer = new OSMBuildings(appState.map).load();
+        // Show buildings - create new instance if needed
+        if (!appState.buildingsLayer) {
+            appState.buildingsLayer = new OSMBuildings(appState.map);
+        }
+        appState.buildingsLayer.load();
         btn.classList.add('active');
+        
+        // Re-analyze if we have points to include buildings in calculation
+        if (appState.currentAnalysis) {
+            analyzeLineOfSight();
+        }
     } else {
         // Hide buildings
         if (appState.buildingsLayer) {
-            appState.buildingsLayer.remove();
+            // OSMBuildings doesn't have a proper hide method, so we need to remove and recreate
+            appState.map.removeLayer(appState.buildingsLayer);
             appState.buildingsLayer = null;
         }
         btn.classList.remove('active');
+        
+        // Re-analyze without buildings
+        if (appState.currentAnalysis) {
+            analyzeLineOfSight();
+        }
     }
 }
 
@@ -586,27 +601,44 @@ function updateCoverageLayer() {
         // Convert km to meters
         const radiusMeters = maxRange * 1000;
 
-        // Create circle with gradient effect
+        // Alternate colors for different points
+        const colors = ['#00d9ff', '#7b61ff', '#00ff88', '#ffaa00'];
+        const color = colors[index % colors.length];
+
+        // Create circle with semi-transparent fill
         const circle = L.circle([point.lat, point.lon], {
             radius: radiusMeters,
-            color: index === 0 ? '#00d9ff' : '#7b61ff',
-            fillColor: index === 0 ? '#00d9ff' : '#7b61ff',
-            fillOpacity: 0.1,
-            weight: 2,
-            opacity: 0.5
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.15,
+            weight: 3,
+            opacity: 0.8,
+            dashArray: '10, 10'
         }).addTo(appState.map);
 
-        // Add popup
+        // Add popup with coverage info
         circle.bindPopup(`
-            <div style="color: #0f1419;">
-                <strong>Coverage for Point ${point.label}</strong><br>
-                Max Range: ${maxRange.toFixed(1)} km<br>
-                Settings: SF${loraParams.spreadingFactor}, BW${loraParams.bandwidth}kHz
+            <div style="color: #0f1419; min-width: 200px;">
+                <strong>📡 Coverage Point ${point.label}</strong><br>
+                <hr style="margin: 8px 0;">
+                <b>Max Range:</b> ${maxRange.toFixed(1)} km<br>
+                <b>Frequency:</b> ${loraParams.frequency} MHz<br>
+                <b>SF:</b> ${loraParams.spreadingFactor}<br>
+                <b>BW:</b> ${loraParams.bandwidth} kHz<br>
+                <b>TX Power:</b> ${loraParams.txPower} dBm<br>
+                <b>TX Gain:</b> ${loraParams.txGain} dBi<br>
+                <b>RX Gain:</b> ${loraParams.rxGain} dBi
             </div>
         `);
 
         appState.coverageCircles.push(circle);
     });
+
+    // Fit map to show all coverage circles if multiple points
+    if (appState.points.length > 1) {
+        const bounds = L.latLngBounds(appState.points.map(p => [p.lat, p.lon]));
+        appState.map.fitBounds(bounds.pad(0.3));
+    }
 }
 
 /**
@@ -630,38 +662,28 @@ function displayAnalysisResults(analyses) {
              '⚠️ Marginal') :
             '❌ Not Viable';
 
+        // Check for building obstructions
+        const buildingObstructions = losAnalysis.obstructions.filter(o => o.type === 'building').length;
+        const terrainObstructions = losAnalysis.obstructions.filter(o => o.type === 'terrain').length;
+
         return `
             <div class="link-status ${statusClass}">
-                <div class="link-status-title">${from} → ${to}: ${statusText}</div>
-                
-                <div class="link-detail">
-                    <span class="link-detail-label">Distance:</span>
-                    <span class="link-detail-value">${distance.toFixed(2)} km</span>
+                <div class="link-header">
+                    <span class="link-title">${from} → ${to}</span>
+                    <span class="link-status-badge ${statusClass}">${statusText}</span>
                 </div>
                 
-                <div class="link-detail">
-                    <span class="link-detail-label">Link Margin:</span>
-                    <span class="link-detail-value">${linkBudget.linkMargin.toFixed(1)} dB</span>
-                </div>
-                
-                <div class="link-detail">
-                    <span class="link-detail-label">RX Power:</span>
-                    <span class="link-detail-value">${linkBudget.rxPower.toFixed(1)} dBm</span>
-                </div>
-                
-                <div class="link-detail">
-                    <span class="link-detail-label">Fresnel Clearance:</span>
-                    <span class="link-detail-value">${losAnalysis.fresnelClearance.toFixed(0)}%</span>
-                </div>
-                
-                <div class="link-detail">
-                    <span class="link-detail-label">Line of Sight:</span>
-                    <span class="link-detail-value">${losAnalysis.hasLoS ? 'Clear ✓' : `Blocked (${losAnalysis.obstructions.length} points)`}</span>
-                </div>
-                
-                <div class="link-detail">
-                    <span class="link-detail-label">Data Rate:</span>
-                    <span class="link-detail-value">${formatDataRate(linkBudget.dataRate)}</span>
+                <div class="link-details-compact">
+                    <div class="detail-row">
+                        <span>📏 ${distance.toFixed(2)} km</span>
+                        <span>📊 ${linkBudget.linkMargin.toFixed(1)} dB margin</span>
+                        <span>📡 ${linkBudget.rxPower.toFixed(1)} dBm RX</span>
+                    </div>
+                    <div class="detail-row">
+                        <span>🌊 ${losAnalysis.fresnelClearance.toFixed(0)}% Fresnel</span>
+                        <span>👁️ ${losAnalysis.hasLoS ? 'Clear LoS' : `Blocked (${buildingObstructions}🏢 ${terrainObstructions}⛰️)`}</span>
+                        <span>⚡ ${formatDataRate(linkBudget.dataRate)}</span>
+                    </div>
                 </div>
             </div>
         `;
@@ -683,7 +705,7 @@ function displayElevationCharts(analyses) {
 
     // Create a chart for each link
     analyses.forEach((analysis, index) => {
-        const { elevationProfile, losAnalysis, from, to } = analysis;
+        const { elevationProfile, losAnalysis, from, to, buildings } = analysis;
         const { profile } = elevationProfile;
 
         // Create chart container
@@ -722,55 +744,105 @@ function displayElevationCharts(analyses) {
             fresnelLower.push(lineHeight - fresnelRadius * 0.6);
         });
 
+        // Calculate building heights along the path
+        const buildingHeights = profile.map((p, i) => {
+            let maxBuildingHeight = elevations[i];
+            
+            if (buildings && buildings.length > 0) {
+                buildings.forEach(building => {
+                    const buildingDist = elevationService.calculateDistance(
+                        p.lat, p.lon, building.lat, building.lon
+                    );
+                    // If building is within 50m of the path point
+                    if (buildingDist < 0.05) { // 50m = 0.05km
+                        maxBuildingHeight = Math.max(maxBuildingHeight, elevations[i] + building.height);
+                    }
+                });
+            }
+            
+            return maxBuildingHeight;
+        });
+
+        // Prepare datasets
+        const datasets = [
+            {
+                label: 'Terrain Elevation',
+                data: elevations,
+                borderColor: '#8B7355',
+                backgroundColor: 'rgba(139, 115, 85, 0.3)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                order: 3
+            },
+            {
+                label: 'LoS Line',
+                data: losLine,
+                borderColor: losAnalysis.hasLoS ? '#00ff88' : '#ff4466',
+                borderDash: [5, 5],
+                fill: false,
+                pointRadius: 0,
+                borderWidth: 2,
+                order: 1
+            },
+            {
+                label: '60% Fresnel Zone',
+                data: fresnelUpper,
+                borderColor: 'rgba(0, 217, 255, 0.3)',
+                backgroundColor: 'rgba(0, 217, 255, 0.1)',
+                fill: '+1',
+                pointRadius: 0,
+                borderWidth: 1,
+                borderDash: [2, 2],
+                order: 2
+            },
+            {
+                label: 'Fresnel Lower',
+                data: fresnelLower,
+                borderColor: 'rgba(0, 217, 255, 0)',
+                fill: false,
+                pointRadius: 0,
+                borderWidth: 0,
+                hidden: true,
+                order: 2
+            }
+        ];
+
+        // Add buildings dataset if buildings are present
+        if (buildings && buildings.length > 0) {
+            // Check if there are actual building obstructions
+            const hasBuildingObstructions = buildingHeights.some((h, i) => h > elevations[i] + 1);
+            
+            if (hasBuildingObstructions) {
+                datasets.push({
+                    label: 'Buildings',
+                    data: buildingHeights,
+                    borderColor: '#ff6b6b',
+                    backgroundColor: 'rgba(255, 107, 107, 0.4)',
+                    fill: true,
+                    stepped: 'before',
+                    pointRadius: 0,
+                    borderWidth: 2,
+                    order: 4
+                });
+            }
+        }
+
         // Create chart
         const ctx = document.getElementById(`elevationChart${index}`).getContext('2d');
         const chart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels,
-                datasets: [
-                    {
-                        label: 'Terrain Elevation',
-                        data: elevations,
-                        borderColor: '#ffaa00',
-                        backgroundColor: 'rgba(255, 170, 0, 0.3)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 0
-                    },
-                    {
-                        label: 'LoS Line',
-                        data: losLine,
-                        borderColor: losAnalysis.hasLoS ? '#00ff88' : '#ff4466',
-                        borderDash: [5, 5],
-                        fill: false,
-                        pointRadius: 0,
-                        borderWidth: 2
-                    },
-                    {
-                        label: '60% Fresnel Zone',
-                        data: fresnelUpper,
-                        borderColor: 'rgba(0, 217, 255, 0.3)',
-                        backgroundColor: 'rgba(0, 217, 255, 0.1)',
-                        fill: '+1',
-                        pointRadius: 0,
-                        borderWidth: 1,
-                        borderDash: [2, 2]
-                    },
-                    {
-                        label: 'Fresnel Lower',
-                        data: fresnelLower,
-                        borderColor: 'rgba(0, 217, 255, 0)',
-                        fill: false,
-                        pointRadius: 0,
-                        borderWidth: 0,
-                        hidden: true
-                    }
-                ]
+                datasets: datasets
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
                 plugins: {
                     title: {
                         display: false
@@ -783,7 +855,19 @@ function displayElevationCharts(analyses) {
                     },
                     tooltip: {
                         mode: 'index',
-                        intersect: false
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toFixed(1) + ' m';
+                                }
+                                return label;
+                            }
+                        }
                     }
                 },
                 scales: {
