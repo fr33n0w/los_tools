@@ -24,6 +24,14 @@
             <!-- Map Container -->
             <div class="map-section">
                 <div id="map"></div>
+                <div class="map-layer-controls">
+                    <button id="toggleBuildingsBtn" class="btn btn-layer" title="Toggle 3D Buildings">
+                        <span class="icon">🏢</span> Buildings
+                    </button>
+                    <button id="toggleCoverageBtn" class="btn btn-layer" title="Toggle Coverage Area">
+                        <span class="icon">📡</span> Coverage
+                    </button>
+                </div>
                 <div class="map-controls">
                     <button id="addPointBtn" class="btn btn-primary">
                         <span class="icon">📍</span> Add Point
@@ -167,19 +175,18 @@
             <h2>📡 Line of Sight Analysis</h2>
             
             <div class="output-grid">
-                <!-- Elevation Profile -->
-                <div class="output-card">
-                    <h3>Elevation Profile</h3>
-                    <canvas id="elevationChart"></canvas>
-                </div>
-
                 <!-- Link Analysis -->
-                <div class="output-card">
+                <div class="output-card full-width">
                     <h3>Link Analysis</h3>
                     <div id="linkAnalysis" class="link-analysis">
                         <p class="placeholder">Click "Analyze LoS" to see results</p>
                     </div>
                 </div>
+            </div>
+
+            <!-- Elevation Profiles Container -->
+            <div id="elevationProfiles" class="elevation-profiles-container">
+                <!-- Charts will be added dynamically -->
             </div>
 
             <!-- Points Table -->
@@ -213,6 +220,7 @@
     <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdn.osmbuildings.org/OSMBuildings-Leaflet.js"></script>
     <script src="lora-calculator.js"></script>
     <script src="elevation-service.js"></script>
     <script src="app.js"></script>
