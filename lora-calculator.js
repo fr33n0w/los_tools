@@ -145,14 +145,12 @@ class LoRaCalculator {
         // Received power
         const rxPower = txPower + txGain + rxGain - pathLoss - miscLosses;
 
-        // Link margin
+        // Link margin (difference between received power and sensitivity)
         const linkMargin = rxPower - sensitivity;
 
-        // Required margin (including fade margin)
-        const requiredMargin = fadeMargin;
-
-        // Link budget
-        const linkBudget = linkMargin - fadeMargin;
+        // Link budget is the total available margin
+        // Many calculators show this as the link margin itself
+        const linkBudget = linkMargin;
 
         // Data rate
         const dataRate = this.calculateDataRate(sf, bw, cr);
@@ -160,13 +158,13 @@ class LoRaCalculator {
         // Fresnel zone
         const fresnelRadius = this.calculateMaxFresnelRadius(distance, frequency);
 
-        // Link status
+        // Link status - check if link margin exceeds fade margin
         let status = 'excellent';
-        if (linkMargin < requiredMargin) {
+        if (linkMargin < fadeMargin) {
             status = 'poor';
-        } else if (linkMargin < requiredMargin + 10) {
+        } else if (linkMargin < fadeMargin + 10) {
             status = 'marginal';
-        } else if (linkMargin < requiredMargin + 20) {
+        } else if (linkMargin < fadeMargin + 20) {
             status = 'good';
         }
 
@@ -175,7 +173,7 @@ class LoRaCalculator {
             pathLoss,
             rxPower,
             linkMargin,
-            linkBudget,
+            linkBudget,  // Now equals linkMargin (standard definition)
             dataRate,
             fresnelRadius,
             status,
@@ -185,7 +183,7 @@ class LoRaCalculator {
                 rxGain,
                 miscLosses,
                 fadeMargin,
-                requiredMargin
+                requiredMargin: fadeMargin
             }
         };
     }
