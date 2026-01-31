@@ -466,7 +466,7 @@ header h1 {
 .link-status {
     padding: 15px;
     border-radius: 8px;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
 }
 
 .link-status.success {
@@ -482,6 +482,62 @@ header h1 {
 .link-status.danger {
     background: rgba(255, 68, 102, 0.1);
     border: 2px solid var(--danger);
+}
+
+.link-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.link-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.link-status-badge {
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+.link-status-badge.success {
+    background: var(--success);
+    color: #0f1419;
+}
+
+.link-status-badge.warning {
+    background: var(--warning);
+    color: #0f1419;
+}
+
+.link-status-badge.danger {
+    background: var(--danger);
+    color: white;
+}
+
+.link-details-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.detail-row span {
+    flex: 1;
+    text-align: left;
 }
 
 .link-status-title {
